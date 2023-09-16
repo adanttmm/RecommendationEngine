@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jun  2 17:34:21 2023
+
+@author: adan
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+#%% 
+# Import dataset
+#################################
+
+df = pd.read_csv('./Credit_Card_Applications.csv')
+
+X = df.iloc[:,:-1].values
+y= df.iloc[:,-1].values # not supervised model, only used for exploration
+
+# feature scaling needed
+from sklearn.preprocessing import MinMaxScaler
+sc = MinMaxScaler(feature_range = (0,1)) # recommended scaler for SOMs
+X = sc.fit_transform(X)
+
+#%% 
+# Training the SOM
+#################################
+
+from minisom import MiniSom
+
+som = MiniSom(
+    x = 10, # number of rows for SOM
+    y = 10, # number of columns for SOM
+    input_len = 15, # number of features
+    sigma = 1.0, # radius of neighborhood for BMU (best meassure unit)
+    learning_rate = 0.5, # rate of radius decrease
+    topology = 'hexagonal', # preferred hexagons
+    random_seed = 859
+    )
+
+som.random_weights_init(X) # initialize Ws
+som.train_random(X, 100)
+
+#%% 
+# Visualize the SOM
+#################################
+
+from pylab import bone, pcolor, colorbar, plot, show
+
+bone() # initialize window
+pcolor(som.distance_map().T) # draw heatmap with MID (mean inter-neuron distance)
+colorbar() # add color label
+markers = ['o', 's'] # markers to explore accepted vs rejected applications
+colors = ['r', 'g']
+
+for i,x in enumerate(X):
+    w = som.winner(x) # get winning node (BMU) for the observation
+    plot(
+        w[0] + 0.5, # plot result for the observation in the center of the node with w the coordinate for top left
+        w[1] + 0.5, # lot result for the observation in the center of the node with w the coordinate for top left
+        markers[y[i]], # circle for accepted square for rejected
+        markeredgecolor = colors[y[i]], # red if accepted, green otherwise
+        markerfacecolor = 'None', # remove fill color for marker
+        markersize = 10,
+        markeredgewidth = 2
+        )
+show()
+
+#%% 
+# find frauds
+#################################
+
+mappings = som.win_map(X) # use the plot to get coordinates for atypical nodes (MID close to 1)
+frauds = np.concatenate((mappings[(2,3)], mappings[8, 7]), axis = 0) # from the inter-neuron distance the corresponding users are selected
+
+frauds = sc.inverse_transform(frauds)
+
+
